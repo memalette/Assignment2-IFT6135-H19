@@ -42,9 +42,9 @@ def _build_vocab(filename):
 torch.manual_seed(1111)
 
 device = torch.device("cpu")
-
-seq_len= 70
-num_seq = 20
+seq_len_1= 35
+seq_len_2 = 70
+num_seq = 10
 
 #Prediction for the RNN
 model = RNN(emb_size=200, hidden_size=1500,
@@ -55,19 +55,27 @@ model = RNN(emb_size=200, hidden_size=1500,
 params_path = os.path.join(os.getcwd(), 'RNN 4.1', 'best_params.pt')
 model.load_state_dict(torch.load(params_path))
 input = 0 * torch.ones(num_seq, dtype=torch.long).cuda()
-hidden = 1.5 * torch.rand(2, num_seq, 1500).cuda()
-gen_seq = model.generate(input, hidden, seq_len).cpu().data.numpy()
+hidden = 2.5 * torch.rand(2, num_seq, 1500).cuda()
+gen_seq_35 = model.generate(input, hidden, seq_len_1).cpu().data.numpy()
+gen_seq_70 = model.generate(input, hidden, seq_len_2).cpu().data.numpy()
 
 data_path = os.path.join(os.getcwd(), 'data', 'ptb.train.txt')
 word_2_id, id_2_word = _build_vocab(data_path)
-sentences = ['' for _ in range(num_seq)]
 print('####################################### RNN Sentences #######################################')
+sentences = ['' for _ in range(num_seq)]
 for i in range(num_seq):
-    print(str(i) + ': ')
-    for j in range(seq_len+1):
-        sentences[i] += id_2_word[gen_seq[j, i]] + ' '
+    for j in range(seq_len_1+1):
+        sentences[i] += id_2_word[gen_seq_35[j, i]] + ' '
     sentences[i] += '\n'
     print(sentences[i])
+sentences = ['' for _ in range(num_seq)]
+for i in range(num_seq):
+    for j in range(seq_len_2+1):
+        sentences[i] += id_2_word[gen_seq_70[j, i]] + ' '
+    sentences[i] += '\n'
+    print(sentences[i])
+
+
 
 #Prediction for the GRU
 model = GRU(emb_size=200, hidden_size=1500,
@@ -79,12 +87,19 @@ params_path = os.path.join(os.getcwd(), 'GRU 4.1', 'best_params.pt')
 model.load_state_dict(torch.load(params_path))
 input = 0 * torch.ones(num_seq, dtype=torch.long).cuda()
 hidden = 1.75 * torch.rand(2, num_seq, 1500).cuda()
-gen_seq = model.generate(input, hidden, seq_len).cpu().data.numpy()
+gen_seq_35 = model.generate(input, hidden, seq_len_1).cpu().data.numpy()
+gen_seq_70 = model.generate(input, hidden, seq_len_2).cpu().data.numpy()
 sentences = ['' for _ in range(num_seq)]
 print('####################################### GRU Sentences #######################################')
+sentences = ['' for _ in range(num_seq)]
 for i in range(num_seq):
-    print(str(i) + ': ')
-    for j in range(seq_len+1):
-        sentences[i] += id_2_word[gen_seq[j, i]] + ' '
+    for j in range(seq_len_1+1):
+        sentences[i] += id_2_word[gen_seq_35[j, i]] + ' '
+    sentences[i] += '\n'
+    print(sentences[i])
+sentences = ['' for _ in range(num_seq)]
+for i in range(num_seq):
+    for j in range(seq_len_2+1):
+        sentences[i] += id_2_word[gen_seq_70[j, i]] + ' '
     sentences[i] += '\n'
     print(sentences[i])
