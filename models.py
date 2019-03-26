@@ -5,7 +5,7 @@ import numpy as np
 import torch.nn.functional as F
 import math, copy, time
 from torch.autograd import Variable
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 # NOTE ==============================================
 #
@@ -42,6 +42,7 @@ def clones(module, N):
     """
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
+
 # Problem 1
 class RNN(nn.Module): # Implement a stacked vanilla RNN with Tanh nonlinearities.
   def __init__(self, emb_size, hidden_size, seq_len, batch_size, vocab_size, num_layers, dp_keep_prob):
@@ -72,35 +73,29 @@ class RNN(nn.Module): # Implement a stacked vanilla RNN with Tanh nonlinearities
     # for Pytorch to recognize these parameters as belonging to this nn.Module 
     # and compute their gradients automatically. You're not obligated to use the
     # provided clones function.
-    
-    
-    self.encoder=nn.Embedding(vocab_size, emb_size)
-    
-    self.drop=nn.Dropout(dp_keep_prob)
-    self.hidden_1=nn.Linear(in_features=emb_size, out_features=hidden_size,bias=False)
-    self.hidden_2=nn.Linear(in_features=hidden_size, out_features=hidden_size)
-    if num_layers>1:
-        self.hid_layers_1 = clones(nn.Linear(hidden_size, hidden_size,bias=False), num_layers-1)
+
+    self.encoder = nn.Embedding(vocab_size, emb_size)
+    self.drop = nn.Dropout(1-dp_keep_prob)
+    self.hidden_1 = nn.Linear(in_features=emb_size, out_features=hidden_size, bias=False)
+    self.hidden_2 = nn.Linear(in_features=hidden_size, out_features=hidden_size)
+    if num_layers > 1:
+        self.hid_layers_1 = clones(nn.Linear(hidden_size, hidden_size, bias=False), num_layers-1)
         self.hid_layers_2 = clones(nn.Linear(hidden_size, hidden_size), num_layers-1)
-    
-    self.tanh=nn.Tanh()
-    self.linear=nn.Linear(hidden_size, vocab_size)
-    self.seq_len=seq_len
-    
-    self.batch_size=batch_size
-    self.num_layers=num_layers
-    self.vocab_size=vocab_size
-    self.hidden_size=hidden_size
-    
-    
-    
-    
+    self.tanh = nn.Tanh()
+    self.linear = nn.Linear(hidden_size, vocab_size)
+    self.seq_len = seq_len
+    self.batch_size = batch_size
+    self.num_layers = num_layers
+    self.vocab_size = vocab_size
+    self.hidden_size = hidden_size
+
     if torch.cuda.is_available():
         self.device = torch.device("cuda") 
     else:
         self.device = torch.device("cpu")
     
     self.init_weights()  
+    
     
   def init_weights(self):
     # TODO ========================
@@ -110,24 +105,17 @@ class RNN(nn.Module): # Implement a stacked vanilla RNN with Tanh nonlinearities
     # in the range [-k, k] where k is the square root of 1/hidden_size
     
     initrange = 0.1
-    torch.nn.init.uniform_(self.encoder.weight,a=-initrange, b=initrange)
-    
-    k=math.sqrt(1/self.hidden_size)
-    
-    torch.nn.init.uniform_(self.hidden_1.weight,a=-k, b=k)
-    #torch.nn.init.uniform_(self.hidden_1.bias,a=-k, b=k)
-    torch.nn.init.uniform_(self.hidden_2.weight,a=-k, b=k)
-    torch.nn.init.uniform_(self.hidden_2.bias,a=-k, b=k)
+    torch.nn.init.uniform_(self.encoder.weight, a=-initrange, b=initrange)
+    k = math.sqrt(1/self.hidden_size)
+    torch.nn.init.uniform_(self.hidden_1.weight, a=-k, b=k)
+    torch.nn.init.uniform_(self.hidden_2.weight, a=-k, b=k)
+    torch.nn.init.uniform_(self.hidden_2.bias, a=-k, b=k)
     for i in range(self.num_layers-1):
-        torch.nn.init.uniform_(self.hid_layers_1[i].weight,a=-k, b=k)
-        #torch.nn.init.uniform_(self.hid_layers_1[i].bias,a=-k, b=k)
-        torch.nn.init.uniform_(self.hid_layers_2[i].weight,a=-k, b=k)
-        torch.nn.init.uniform_(self.hid_layers_2[i].bias,a=-k, b=k)
-    
-    torch.nn.init.uniform_(self.linear.weight,a=-k, b=k)
-    torch.nn.init.uniform_(self.linear.bias,a=-k, b=k)
-    
-    
+        torch.nn.init.uniform_(self.hid_layers_1[i].weight, a=-k, b=k)
+        torch.nn.init.uniform_(self.hid_layers_2[i].weight, a=-k, b=k)
+        torch.nn.init.uniform_(self.hid_layers_2[i].bias, a=-k, b=k)
+    torch.nn.init.uniform_(self.linear.weight, a=-k, b=k)
+    torch.nn.init.uniform_(self.linear.bias, a=-k, b=k)
     
 
   def init_hidden(self):
@@ -137,6 +125,7 @@ class RNN(nn.Module): # Implement a stacked vanilla RNN with Tanh nonlinearities
     This is used for the first mini-batch in an epoch, only.
     """
     return torch.zeros(self.num_layers, self.batch_size, self.hidden_size).to(self.device)
+  
 
   def forward(self, inputs, hidden):
     # TODO ========================
@@ -174,29 +163,27 @@ class RNN(nn.Module): # Implement a stacked vanilla RNN with Tanh nonlinearities
               if you are curious.
                     shape: (num_layers, batch_size, hidden_size)
     """
-    
-    #hid=[]
-    #hid2=[]
-    new_hidden=[]
+    self.gradients = []
+    new_hidden = []
     for i in range(hidden.shape[0]):
-        new_hidden.append(hidden[i,:,:])
-        
-    
-    inputs=self.drop(self.encoder(inputs))
-    logits=torch.zeros(self.seq_len,self.batch_size,self.vocab_size).to(self.device)
+        new_hidden.append(hidden[i, :, :])
+    inputs = self.encoder(inputs)
+    logits = torch.zeros(self.seq_len, self.batch_size, self.vocab_size).to(self.device)
     
     for i in range(self.seq_len):  
         stored_h = []
         for layer in range(self.num_layers):
             if layer == 0:
-                h1 = self.tanh(self.hidden_1(inputs[i,:,:])+self.hidden_2(new_hidden[0]))
+                h1 = self.tanh(self.hidden_1(inputs[i, :, :])+self.hidden_2(new_hidden[0]))
                 stored_h.append(h1)
+                stored_h[layer].register_hook(self.gradients.append)
             else:
                 hn = self.tanh(self.hid_layers_1[layer-1](self.drop(stored_h[layer-1]))+self.hid_layers_2[layer-1](new_hidden[layer]))
-                stored_h.append(hn)   
+                stored_h.append(hn)
+                stored_h[layer].register_hook(self.gradients.append)
         new_hidden = stored_h
         logits[i, :, :] = self.linear(self.drop(stored_h[-1]))
-        
+
     hidden = torch.stack(stored_h)
                   
     return logits, hidden
@@ -226,20 +213,21 @@ class RNN(nn.Module): # Implement a stacked vanilla RNN with Tanh nonlinearities
         - Sampled sequences of tokens
                     shape: (generated_seq_len, batch_size)
     """
-    
-    samples=torch.zeros(generated_seq_len, self.batch_size).to(self.device)
-    inputs=self.encoder(input)
-    for i in range(generated_seq_len):       
-        hidden.data[0,:,:] = self.hidden_1(((torch.cat((self.drop(inputs[i,:,:]), hidden[0,:,:]), 1)))).tanh()
-        k=1       
-        if self.num_layers>1:
-            for hid_layers in self.hid_layers:
-                hidden.data[k,:,:] = hid_layers(((torch.cat((self.drop(hidden[k-1,:,:]), hidden[k,:,:]), 1)))).tanh()
-                k+=1
-        
-        _, samples[i,:]=torch.max(self.linear(hidden[-1,:,:]))
-   
-    return samples
+    batch_size = input.shape[0]
+    outputs = torch.zeros(generated_seq_len+1, batch_size, dtype=torch.long).to(self.device)
+    outputs[0, :] = input
+
+    for i in range(generated_seq_len):
+        inputs = self.encoder(outputs[i, :])
+        hidden[0, :, :] = self.tanh(self.hidden_1(inputs) + self.hidden_2(hidden[0, :, :]))
+        k = 1
+        if self.num_layers > 1:
+            for hidden_1, hidden_2 in zip(self.hid_layers_1, self.hid_layers_2):
+                hidden[k, :, :] = self.tanh(hidden_1(hidden[k-1, :, :])+hidden_2(hidden[k, :, :]))
+                k += 1
+        outputs[i+1, :] = torch.argmax(self.linear(hidden[-1, :, :]), dim=1)
+
+    return outputs
 
 
 # Problem 2
@@ -252,103 +240,115 @@ class GRU(nn.Module): # Implement a stacked GRU RNN
     super(GRU, self).__init__()
 
     # TODO ========================
+    self.seq_len = seq_len
+    self.batch_size = batch_size
+    self.num_layers = num_layers
+    self.vocab_size = vocab_size
+    self.hidden_size = hidden_size
     
-    self.encoder=nn.Embedding(vocab_size, emb_size)
-    self.drop=nn.Dropout(dp_keep_prob)
-    
-    self.seq_len=seq_len
-    self.linear=nn.Linear(hidden_size, vocab_size)
-    self.batch_size=batch_size
-    self.num_layers=num_layers
-    self.vocab_size=vocab_size
-    self.hidden_size=hidden_size
-    
-    
-    self.r_1=nn.Linear(in_features=hidden_size+emb_size, out_features=hidden_size)
-    self.z_1=nn.Linear(in_features=hidden_size+emb_size, out_features=hidden_size)
-    self.htilde_1=nn.Linear(in_features=hidden_size+emb_size, out_features=hidden_size)
-    if num_layers>1:
-        self.r=clones(nn.Linear(in_features=hidden_size*2, out_features=hidden_size),num_layers-1)
-        self.z=clones(nn.Linear(in_features=hidden_size*2, out_features=hidden_size),num_layers-1)
-        self.htilde=clones(nn.Linear(in_features=hidden_size*2, out_features=hidden_size),num_layers-1)
-        
-    self.linear=nn.Linear(hidden_size, vocab_size)  
-    
+    self.encoder = nn.Embedding(vocab_size, emb_size)
+    self.drop = nn.Dropout(1-dp_keep_prob)
+    self.r_1 = nn.Linear(in_features=hidden_size+emb_size, out_features=hidden_size)
+    self.z_1 = nn.Linear(in_features=hidden_size+emb_size, out_features=hidden_size)
+    self.htilde_1 = nn.Linear(in_features=hidden_size+emb_size, out_features=hidden_size)
+    if num_layers > 1:
+        self.r = clones(nn.Linear(in_features=hidden_size*2, out_features=hidden_size), num_layers-1)
+        self.z = clones(nn.Linear(in_features=hidden_size*2, out_features=hidden_size), num_layers-1)
+        self.htilde = clones(nn.Linear(in_features=hidden_size*2, out_features=hidden_size), num_layers-1)
+    self.linear = nn.Linear(hidden_size, vocab_size)
+
     if torch.cuda.is_available():
-        self.device = torch.device("cuda") 
-    
+        self.device = torch.device("cuda")
+
     self.init_weights_uniform()    
         
 
   def init_weights_uniform(self):
     # TODO ========================
-    
-    
     initrange = 0.1
-    torch.nn.init.uniform_(self.encoder.weight,a=-initrange, b=initrange)
+    torch.nn.init.uniform_(self.encoder.weight, a=-initrange, b=initrange)
     
-    k=math.sqrt(1/self.hidden_size)
+    k = math.sqrt(1/self.hidden_size)
     
-    torch.nn.init.uniform_(self.r_1.weight,a=-k, b=k)
-    torch.nn.init.uniform_(self.r_1.bias,a=-k, b=k)
-    torch.nn.init.uniform_(self.z_1.weight,a=-k, b=k)
-    torch.nn.init.uniform_(self.z_1.bias,a=-k, b=k)
-    torch.nn.init.uniform_(self.htilde_1.weight,a=-k, b=k)
-    torch.nn.init.uniform_(self.htilde_1.bias,a=-k, b=k)
-    if self.num_layers>1:
+    torch.nn.init.uniform_(self.r_1.weight, a=-k, b=k)
+    torch.nn.init.uniform_(self.r_1.bias, a=-k, b=k)
+    torch.nn.init.uniform_(self.z_1.weight, a=-k, b=k)
+    torch.nn.init.uniform_(self.z_1.bias, a=-k, b=k)
+    torch.nn.init.uniform_(self.htilde_1.weight, a=-k, b=k)
+    torch.nn.init.uniform_(self.htilde_1.bias, a=-k, b=k)
+    if self.num_layers > 1:
         for i in range(self.num_layers-1):
-            torch.nn.init.uniform_(self.r[i].weight,a=-k, b=k)
-            torch.nn.init.uniform_(self.r[i].bias,a=-k, b=k)
-            torch.nn.init.uniform_(self.z[i].weight,a=-k, b=k)
-            torch.nn.init.uniform_(self.z[i].bias,a=-k, b=k)
-            torch.nn.init.uniform_(self.htilde[i].weight,a=-k, b=k)
-            torch.nn.init.uniform_(self.htilde[i].bias,a=-k, b=k)
-    
-    torch.nn.init.uniform_(self.linear.weight,a=-k, b=k)
-    torch.nn.init.uniform_(self.linear.bias,a=-k, b=k)
+            torch.nn.init.uniform_(self.r[i].weight, a=-k, b=k)
+            torch.nn.init.uniform_(self.r[i].bias, a=-k, b=k)
+            torch.nn.init.uniform_(self.z[i].weight, a=-k, b=k)
+            torch.nn.init.uniform_(self.z[i].bias, a=-k, b=k)
+            torch.nn.init.uniform_(self.htilde[i].weight, a=-k, b=k)
+            torch.nn.init.uniform_(self.htilde[i].bias, a=-k, b=k)
+    torch.nn.init.uniform_(self.linear.weight, a=-k, b=k)
+    torch.nn.init.uniform_(self.linear.bias, a=-k, b=k)
     
     
   def init_hidden(self):
     # TODO ========================
     return torch.zeros(self.num_layers, self.batch_size, self.hidden_size).to(self.device)
 
+
   def forward(self, inputs, hidden):
     # TODO ========================
     
-    logits=torch.zeros(self.seq_len,self.batch_size,self.vocab_size).to(self.device)
-    r=torch.zeros(self.batch_size,self.vocab_size).to(self.device)
-    z=torch.zeros(self.batch_size,self.vocab_size).to(self.device)
-    htilde=torch.zeros(self.batch_size,self.vocab_size).to(self.device)
+    logits=torch.zeros(self.seq_len, self.batch_size, self.vocab_size).to(self.device)
     
-    hid=[]
+    hid = []
+    self.gradients=[]
     for i in range(self.num_layers):
-        hid.append(hidden[i,:,:])
+        hid.append(hidden[i, :, :])
     
-    inputs=self.encoder(inputs)
+    inputs = self.drop(self.encoder(inputs))
     for i in range(self.seq_len):
-        r=self.r_1(torch.cat((inputs[i,:,:], hid[0]), 1)).sigmoid()
-        z=self.z_1(torch.cat((inputs[i,:,:], hid[0]), 1)).sigmoid()
-        htilde=self.htilde_1(torch.cat((inputs[i,:,:],torch.mul(r,hid[0])), 1)).tanh()
-        hid[0]=torch.mul(1-z,hid[0])+torch.mul(z,htilde)
-        k=1       
-        if self.num_layers>1:
-            for r_h, z_h, htilde_h in zip(self.r,self.z,self.htilde):
-                drop_hidden=self.drop(hid[k-1])
-                r=r_h(torch.cat((drop_hidden, hid[k]), 1)).sigmoid()
-                z=z_h(torch.cat((drop_hidden, hid[k]), 1)).sigmoid()
-                htilde=htilde_h(torch.cat((drop_hidden,torch.mul(r,hid[k])), 1)).tanh()
-                hid[k]=torch.mul(1-z,hid[k])+torch.mul(z,htilde)
-                k+=1 
-        
-        logits[i,:,:]=self.linear(self.drop(hid[-1]))
-      
+        r = self.r_1(torch.cat((inputs[i, :, :], hid[0]), 1)).sigmoid()
+        z = self.z_1(torch.cat((inputs[i, :, :], hid[0]), 1)).sigmoid()
+        htilde = self.htilde_1(torch.cat((inputs[i, :, :], torch.mul(r, hid[0])), 1)).tanh()
+        hid[0] = torch.mul(1-z, hid[0])+torch.mul(z, htilde)
+        hid[0].register_hook(self.gradients.append)
+        k = 1
+        if self.num_layers > 1:
+            for r_h, z_h, htilde_h in zip(self.r, self.z, self.htilde):
+                drop_hidden = self.drop(hid[k-1])
+                r = r_h(torch.cat((drop_hidden, hid[k]), 1)).sigmoid()
+                z = z_h(torch.cat((drop_hidden, hid[k]), 1)).sigmoid()
+                htilde = htilde_h(torch.cat((drop_hidden, torch.mul(r,hid[k])), 1)).tanh()
+                hid[k] = torch.mul(1-z, hid[k])+torch.mul(z, htilde)
+                hid[k].register_hook(self.gradients.append)
+                k += 1
+        logits[i, :, :] = self.linear(self.drop(hid[-1]))
+
     return logits, torch.stack(hid)
 
-"""
+
   def generate(self, input, hidden, generated_seq_len):
     # TODO ========================
-    return samples
-"""
+
+    batch_size = input.shape[0]
+    outputs = torch.zeros(generated_seq_len + 1, batch_size, dtype=torch.long).to(self.device)
+    outputs[0, :] = input
+    for i in range(self.seq_len):
+        inputs = self.encoder(outputs[i, :])
+        r = self.r_1(torch.cat((inputs, hidden[0, :, :]), 1)).sigmoid()
+        z = self.z_1(torch.cat((inputs, hidden[0, :, :]), 1)).sigmoid()
+        htilde = self.htilde_1(torch.cat((inputs, torch.mul(r, hidden[0, :, :])), 1)).tanh()
+        hidden[0, :, :] = torch.mul(1 - z, hidden[0, :, :]) + torch.mul(z, htilde)
+        k = 1
+        if self.num_layers > 1:
+            for r_h, z_h, htilde_h in zip(self.r, self.z, self.htilde):
+                r = r_h(torch.cat((hidden[k - 1, :, :], hidden[k, :, :]), 1)).sigmoid()
+                z = z_h(torch.cat((hidden[k - 1, :, :], hidden[k, :, :]), 1)).sigmoid()
+                htilde = htilde_h(torch.cat((hidden[k-1, :, :], torch.mul(r, hidden[k, :, :])), 1)).tanh()
+                hidden[k, :, :] = torch.mul(1 - z, hidden[k, :, :]) + torch.mul(z, htilde)
+                k += 1
+        outputs[i + 1, :] = torch.argmax(self.linear(hidden[-1, :, :]), dim=1)
+
+    return outputs
+
 
 # Problem 3
 ##############################################################################
@@ -425,18 +425,14 @@ class MultiHeadedAttention(nn.Module):
         self.d_k = n_units // n_heads
         # This requires the number of n_heads to evenly divide n_units.
         assert n_units % n_heads == 0
-        self.n_units = n_units 
-        
-        
-        self.drop=nn.Dropout(dropout)
-        
-        self.n_heads=n_heads
-        
-        self.Q=clones(nn.Linear(in_features=n_units, out_features=self.d_k),n_heads)
-        self.K=clones(nn.Linear(in_features=n_units, out_features=self.d_k),n_heads)
-        self.V=clones(nn.Linear(in_features=n_units, out_features=self.d_k),n_heads)
-        self.soft_max=nn.Softmax(dim=0)
-        self.linear=nn.Linear(n_units,n_units)
+        self.n_units = n_units
+        self.drop = nn.Dropout(dropout)
+        self.n_heads = n_heads
+        self.Q = nn.Linear(n_units, n_units)
+        self.K = nn.Linear(n_units, n_units)
+        self.V = nn.Linear(n_units, n_units)
+        self.soft_max = nn.Softmax(dim=-1)
+        self.linear = nn.Linear(n_units, n_units)
         if torch.cuda.is_available():
             self.device = torch.device("cuda") 
 
@@ -447,17 +443,16 @@ class MultiHeadedAttention(nn.Module):
         # and nn.Dropout
         # ETA: you can also use softmax
         # ETA: you can use the "clones" function we provide.
-        k=math.sqrt(1/self.n_units)
-        for i in range(n_heads):
-            torch.nn.init.uniform_(self.Q[i].weight, a=-k,b=-k)
-            torch.nn.init.uniform_(self.Q[i].bias, a=-k,b=-k)
-            torch.nn.init.uniform_(self.K[i].weight, a=-k,b=-k)
-            torch.nn.init.uniform_(self.K[i].bias, a=-k,b=-k)
-            torch.nn.init.uniform_(self.V[i].weight, a=-k,b=-k)
-            torch.nn.init.uniform_(self.V[i].bias, a=-k,b=-k)
-        torch.nn.init.uniform_(self.linear.weight, a=-k, b=-k)
-        torch.nn.init.uniform_(self.linear.bias, a=-k, b=-k)
-        
+        k = math.sqrt(1/self.n_units)
+        torch.nn.init.uniform_(self.K.weight, a=-k, b=k)
+        torch.nn.init.uniform_(self.K.bias, a=-k, b=k)
+        torch.nn.init.uniform_(self.Q.weight, a=-k, b=k)
+        torch.nn.init.uniform_(self.Q.bias, a=-k, b=k)
+        torch.nn.init.uniform_(self.V.weight, a=-k, b=k)
+        torch.nn.init.uniform_(self.V.bias, a=-k, b=k)
+        torch.nn.init.uniform_(self.linear.weight, a=-k, b=k)
+        torch.nn.init.uniform_(self.linear.bias, a=-k, b=k)
+
     def forward(self, query, key, value, mask=None):
         # TODO: implement the masked multi-head attention.
         # query, key, and value correspond to Q, K, and V in the latex, and 
@@ -466,27 +461,18 @@ class MultiHeadedAttention(nn.Module):
         # As described in the .tex, apply input masking to the softmax 
         # generating the "attention values" (i.e. A_i in the .tex)
         # Also apply dropout to the attention values.
-        batch_size=query.size()[0]
-        seq_len=query.size()[1]
-        mask=mask.type(torch.float32)
-        #A=torch.zeros(self.n_heads,batch_size,seq_len,seq_len).to(self.device)
-        A=[]
-        #H=torch.zeros(self.n_heads,batch_size,seq_len,self.d_k).to(self.device)
-        H=[]
-        k=0
-        for Q,K,V in zip(self.Q,self.K,self.V):
-            
+        batch_size = query.size(0)
+        key = self.K(key).view(batch_size, -1, self.n_heads, self.d_k).transpose(1,2)
+        query = self.Q(query).view(batch_size, -1, self.n_heads, self.d_k).transpose(1,2)
+        value = self.V(value).view(batch_size, -1, self.n_heads, self.d_k).transpose(1,2)
+        scores = torch.matmul(query, key.transpose(-2,-1)) / math.sqrt(self.d_k)
+        mask = mask.unsqueeze(1)
+        scores = scores.masked_fill(mask==0, -1e9)
+        A = self.drop(self.soft_max(scores))
+        H = torch.matmul(A, value)
+        H = H.transpose(1,2).contiguous().view(batch_size, -1, self.n_units)
 
-            A.append(self.soft_max(mask*torch.matmul(Q(query),torch.transpose(K(key),2,1))/math.sqrt(self.d_k)-10**9*(1-mask)))
-            H.append(torch.matmul(A[k],V(value)))
-            k+=1
-        
-        H=torch.stack(H)
-        return self.drop(self.linear(H.view(batch_size,seq_len,self.n_units)))# size: (batch_size, seq_len, self.n_units)
-
-
-
-
+        return self.linear(H)# size: (batch_size, seq_len, self.n_units)
 
 
 #----------------------------------------------------------------------------------

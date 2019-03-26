@@ -97,8 +97,8 @@ path = os.path.join(os.getcwd(),'best_model','TRANSFORMER 4.1', 'best_params.pt'
 
 # Initializing the model
 model = TRANSFORMER(vocab_size=10000, n_units=512, 
-                            n_blocks=6, dropout=0.1).cuda() 
-model.batch_size=128
+                            n_blocks=6, dropout=0.1)
+model.batch_size=20
 model.seq_len=35
 model.vocab_size=10000
 
@@ -122,15 +122,6 @@ plt.plot(out_RNN)
 plt.plot(out_TRNSFMR)
 plt.show()   
 
-model = TRANSFORMER(vocab_size=vocab_size, n_units=args.hidden_size, 
-                            n_blocks=args.num_layers, dropout=1.-args.dp_keep_prob) 
-
-model.batch_size=args.batch_size
-model.seq_len=args.seq_len
-model.vocab_size=vocab_size
-
-path=os.path.join(os.getcwd(),'best_model','TRANSFORMER 4.1', 'best_params.pt')
-model.load_state_dict(torch.load(path))
 
 ###########################################################
 
